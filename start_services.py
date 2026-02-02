@@ -20,31 +20,65 @@ def run_command(cmd, cwd=None):
     print("Running:", " ".join(cmd))
     subprocess.run(cmd, cwd=cwd, check=True)
 
-def clone_supabase_repo():
-    """Clone the Supabase repository using sparse checkout if not already present."""
-    if not os.path.exists("supabase"):
-        print("Cloning the Supabase repository...")
-        run_command([
-            "git", "clone", "--filter=blob:none", "--no-checkout",
-            "https://github.com/supabase/supabase.git"
-        ])
-        os.chdir("supabase")
-        run_command(["git", "sparse-checkout", "init", "--cone"])
-        run_command(["git", "sparse-checkout", "set", "docker"])
-        run_command(["git", "checkout", "master"])
-        os.chdir("..")
+def clone_repo(repo_url, target_dir, sparse_dirs=None):
+    """Utility to clone or update a repository with optional sparse checkout."""
+    if not os.path.exists(target_dir):
+        print(f"Cloning {repo_url} into {target_dir}...")
+        if sparse_dirs:
+            run_command([
+                "git", "clone", "--filter=blob:none", "--no-checkout",
+                repo_url, target_dir
+            ])
+            os.chdir(target_dir)
+            run_command(["git", "sparse-checkout", "init", "--cone"])
+            run_command(["git", "sparse-checkout", "set"] + sparse_dirs)
+            run_command(["git", "checkout", "master"])
+            os.chdir("..")
+        else:
+            run_command(["git", "clone", repo_url, target_dir])
     else:
-        print("Supabase repository already exists, updating...")
-        os.chdir("supabase")
-        run_command(["git", "pull"])
+        print(f"Repository {target_dir} already exists, updating...")
+        os.chdir(target_dir)
+        try:
+            run_command(["git", "pull"])
+        except Exception as e:
+            print(f"Warning: Could not update {target_dir}: {e}")
         os.chdir("..")
 
+def clone_supabase_repo():
+    """Clone the Supabase repository using sparse checkout."""
+    clone_repo("https://github.com/supabase/supabase.git", "supabase", ["docker"])
+
+def clone_additional_repos():
+    """Clone Archon and DeepWiki repositories."""
+    clone_repo("https://github.com/coleam00/Archon.git", "archon")
+    clone_repo("https://github.com/AsyncFuncAI/deepwiki-open.git", "deepwiki")
+
+def prepare_envs():
+    """Copy .env to all subprojects."""
+    env_example_path = ".env"
+    if not os.path.exists(env_example_path):
+        print("Warning: .env not found in root. Skipping environment propagation.")
+        return
+        
+    targets = [
+        os.path.join("supabase", "docker", ".env"),
+        os.path.join("archon", ".env"),
+        os.path.join("deepwiki", ".env"),
+        os.path.join("comfyui", ".env")
+    ]
+    
+    for target in targets:
+        target_dir = os.path.dirname(target)
+        if os.path.exists(target_dir):
+            print(f"Copying .env to {target}...")
+            shutil.copyfile(env_example_path, target)
+        else:
+            print(f"Skipping {target}: directory not found.")
+
 def prepare_supabase_env():
-    """Copy .env to .env in supabase/docker."""
-    env_path = os.path.join("supabase", "docker", ".env")
-    env_example_path = os.path.join(".env")
-    print("Copying .env in root to .env in supabase/docker...")
-    shutil.copyfile(env_example_path, env_path)
+    # Keep for backward compatibility or refactor main
+    prepare_envs()
 
 def stop_existing_containers(profile=None):
     print("Stopping and removing existing containers for the unified project 'localai'...")
@@ -226,7 +260,11 @@ def main():
     args = parser.parse_args()
 
     clone_supabase_repo()
-    prepare_supabase_env()
+    clone_additional_repos()
+    # ComfyUI special handling
+    clone_repo("https://github.com/nerdyrodent/AV-ComfyUI-Docker.git", "comfyui")
+    
+    prepare_envs()
     
     # Generate SearXNG secret key and check docker-compose.yml
     generate_searxng_secret_key()
