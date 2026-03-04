@@ -41,9 +41,12 @@ def clone_supabase_repo():
         run_command(["git", "checkout", "master"])
         os.chdir("..")
     else:
-        print("Supabase repository already exists, updating...")
-        os.chdir("supabase")
-        run_command(["git", "pull"])
+        print(f"Repository {target_dir} already exists, updating...")
+        os.chdir(target_dir)
+        try:
+            run_command(["git", "pull"])
+        except Exception as e:
+            print(f"Warning: Could not update {target_dir}: {e}")
         os.chdir("..")
 
 

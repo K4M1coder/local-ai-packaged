@@ -40,6 +40,21 @@
     reverse_proxy neo4j:7474
 }
 
+# Archon
+{$ARCHON_HOSTNAME} {
+    reverse_proxy archon:3000
+}
+
+# DeepWiki
+{$DEEPWIKI_HOSTNAME} {
+    reverse_proxy deepwiki:3000
+}
+
+# ComfyUI
+{$COMFYUI_HOSTNAME} {
+    reverse_proxy comfyui:8188
+}
+
 import /etc/caddy/addons/*.conf
 
 # # SearXNG

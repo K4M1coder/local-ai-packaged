@@ -1,5 +1,8 @@
 include:
   - ./supabase/docker/docker-compose.yml
+  - ./archon/docker-compose.yml
+  - ./deepwiki/docker-compose.yml
+  - ./comfyui/docker-compose.yml
 
 volumes:
   n8n_storage:
