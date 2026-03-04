@@ -2,7 +2,7 @@
 
 **Self-hosted AI Package** is an open, docker compose template that
 quickly bootstraps a fully featured Local AI and Low Code development
-environment including Ollama for your local LLMs, Open WebUI for an interface to chat with your N8N agents, and Supabase for your database, vector store, and authentication. 
+environment including Ollama for your local LLMs, Open WebUI for an interface to chat with your N8N agents, and Supabase for your database, vector store, and authentication.
 
 This is Cole's version with a couple of improvements and the addition of Supabase, Open WebUI, Flowise, Neo4j, Langfuse, SearXNG, and Caddy!
 Pre-built RAG AI Agent workflows from the video are included in `n8n/backup/workflows/` - see [Importing Starter Workflows](#importing-starter-workflows) for setup instructions.
@@ -10,6 +10,7 @@ Pre-built RAG AI Agent workflows from the video are included in `n8n/backup/work
 **IMPORANT**: Supabase has updated a couple environment variables so you may have to add some new default values in your .env that I have in my .env.example if you have had this project up and running already and are just pulling new changes. Specifically, you need to add "POOLER_DB_POOL_SIZE=5" to your .env. This is required if you have had the package running before June 14th.
 
 **February 26th, 2026 Update**: The latest Supabase storage container (`storage-api v1.37.8`) now requires several new environment variables. If you have already been running the Local AI Package and are pulling new changes, you need to add the following to your `.env` file:
+
 ```bash
 GLOBAL_S3_BUCKET=stub
 REGION=stub
@@ -17,6 +18,7 @@ STORAGE_TENANT_ID=stub
 S3_PROTOCOL_ACCESS_KEY_ID=625729a08b95bf1b7ff351a663f3a23c
 S3_PROTOCOL_ACCESS_KEY_SECRET=850181e4652dd023b7a98c58ae0d2d34bd487ee0cc3254aed6eda37307425907
 ```
+
 These are already included in the `.env.example`, so if you are setting up for the first time you just need to copy them over. The `stub` values work fine for local file-based storage. Without these variables, the Supabase storage container will crash on startup with a "Region is missing" error.
 
 ## Important Links
@@ -56,9 +58,9 @@ builder that pairs very well with n8n
 store with an comprehensive API. Even though you can use Supabase for RAG, this was
 kept unlike Postgres since it's faster than Supabase so sometimes is the better option.
 
-✅ [**Neo4j**](https://neo4j.com/) - Knowledge graph engine that powers tools like GraphRAG, LightRAG, and Graphiti 
+✅ [**Neo4j**](https://neo4j.com/) - Knowledge graph engine that powers tools like GraphRAG, LightRAG, and Graphiti
 
-✅ [**SearXNG**](https://searxng.org/) - Open source, free internet metasearch engine which aggregates 
+✅ [**SearXNG**](https://searxng.org/) - Open source, free internet metasearch engine which aggregates
 results from up to 229 search services. Users are neither tracked nor profiled, hence the fit with the local AI package.
 
 ✅ [**Caddy**](https://caddyserver.com/) - Managed HTTPS/TLS for custom domains
@@ -76,6 +78,7 @@ Before you begin, make sure you have the following software installed:
 ## Installation
 
 Clone the repository and navigate to the project directory:
+
 ```bash
 git clone -b stable https://github.com/coleam00/local-ai-packaged.git
 cd local-ai-packaged
@@ -85,6 +88,7 @@ Before running the services, you need to set up your environment variables for S
 
 1. Make a copy of `.env.example` and rename it to `.env` in the root directory of the project
 2. Set the following required environment variables:
+
    ```bash
    ############
    # N8N Configuration
@@ -105,7 +109,7 @@ Before running the services, you need to set up your environment variables for S
 
    ############
    # Neo4j Secrets
-   ############   
+   ############
    NEO4J_AUTH=
 
    ############
@@ -116,13 +120,14 @@ Before running the services, you need to set up your environment variables for S
    MINIO_ROOT_PASSWORD=
    LANGFUSE_SALT=
    NEXTAUTH_SECRET=
-   ENCRYPTION_KEY=  
+   ENCRYPTION_KEY=
    ```
 
 > [!IMPORTANT]
 > Make sure to generate secure random values for all secrets. Never use the example values in production.
 
 3. Set the following environment variables if deploying to production, otherwise leave commented:
+
    ```bash
    ############
    # Caddy Config
@@ -136,7 +141,7 @@ Before running the services, you need to set up your environment variables for S
    SEARXNG_HOSTNAME=searxng.yourdomain.com
    NEO4J_HOSTNAME=neo4j.yourdomain.com
    LETSENCRYPT_EMAIL=your-email-address
-   ```   
+   ```
 
 ---
 
@@ -163,11 +168,13 @@ python start_services.py --profile gpu-amd
 If you're using a Mac with an M1 or newer processor, you can't expose your GPU to the Docker instance, unfortunately. There are two options in this case:
 
 1. Run the starter kit fully on CPU:
+
    ```bash
    python start_services.py --profile cpu
    ```
 
 2. Run Ollama on your Mac for faster inference, and connect to that from the n8n instance:
+
    ```bash
    python start_services.py --profile none
    ```
@@ -179,8 +186,7 @@ If you're using a Mac with an M1 or newer processor, you can't expose your GPU t
 If you're running OLLAMA locally on your Mac (not in Docker), you need to modify the OLLAMA_HOST environment variable in the n8n service configuration. Update the x-n8n section in your Docker Compose file as follows:
 
 ```yaml
-x-n8n: &service-n8n
-  # ... other configurations ...
+x-n8n: &service-n8n # ... other configurations ...
   environment:
     # ... other environment variables ...
     - OLLAMA_HOST=host.docker.internal:11434
@@ -199,18 +205,23 @@ python start_services.py --profile cpu
 ```
 
 ### The environment argument
+
 The **start-services.py** script offers the possibility to pass one of two options for the environment argument, **private** (default environment) and **public**:
+
 - **private:** you are deploying the stack in a safe environment, hence a lot of ports can be made accessible without having to worry about security
 - **public:** the stack is deployed in a public environment, which means the attack surface should be made as small as possible. All ports except for 80 and 443 are closed
 
 The stack initialized with
+
 ```bash
    python start_services.py --profile gpu-nvidia --environment private
-   ```
+```
+
 equals the one initialized with
+
 ```bash
    python start_services.py --profile gpu-nvidia
-   ```
+```
 
 ## Deploying to the Cloud
 
@@ -226,23 +237,25 @@ Before running the above commands to pull the repo and install everything:
    - ufw enable
    - ufw allow 80 && ufw allow 443
    - ufw reload
-   ---
+
+   ***
+
    **WARNING**
 
    ufw does not shield ports published by docker, because the iptables rules configured by docker are analyzed before those configured by ufw. There is a solution to change this behavior, but that is out of scope for this project. Just make sure that all traffic runs through the caddy service via port 443. Port 80 should only be used to redirect to port 443.
 
-   ---
+   ***
+
 2. Run the **start-services.py** script with the environment argument **public** to indicate you are going to run the package in a public environment. The script will make sure that all ports, except for 80 and 443, are closed down, e.g.
 
 ```bash
    python3 start_services.py --profile gpu-nvidia --environment public
-   ```
+```
 
 3. Set up A records for your DNS provider to point your subdomains you'll set up in the .env file for Caddy
-to the IP address of your cloud instance.
+   to the IP address of your cloud instance.
 
    For example, A record to point n8n to [cloud instance IP] for n8n.yourdomain.com
-
 
 **NOTE**: If you are using a cloud machine without the "docker compose" command available by default, such as a Ubuntu GPU instance on DigitalOcean, run these commands before running start_services.py:
 
@@ -277,7 +290,7 @@ to get started.
    it is only a local account for your instance!
 2. Import a workflow from `n8n/backup/workflows/` (see [Importing Starter Workflows](#importing-starter-workflows)), then open it from your workflow list.
 3. Create credentials for every service:
-   
+
    Ollama URL: http://ollama:11434
 
    Postgres (through Supabase): use DB, username, and password from .env. IMPORTANT: Host is 'db'
@@ -288,22 +301,23 @@ to get started.
    Google Drive: Follow [this guide from n8n](https://docs.n8n.io/integrations/builtin/credentials/google/).
    Don't use localhost for the redirect URI, just use another domain you have, it will still work!
    Alternatively, you can set up [local file triggers](https://docs.n8n.io/integrations/builtin/core-nodes/n8n-nodes-base.localfiletrigger/).
+
 4. Select **Test workflow** to start running the workflow.
 5. If this is the first time you’re running the workflow, you may need to wait
    until Ollama finishes downloading Llama3.1. You can inspect the docker
    console logs to check on the progress.
 6. Make sure to toggle the workflow as active and copy the "Production" webhook URL!
 7. Open <http://localhost:3000/> in your browser to set up Open WebUI.
-You’ll only have to do this once. You are NOT creating an account with Open WebUI in the 
-setup here, it is only a local account for your instance!
+   You’ll only have to do this once. You are NOT creating an account with Open WebUI in the
+   setup here, it is only a local account for your instance!
 8. Go to Workspace -> Functions -> Add Function -> Give name + description then paste in
-the code from `n8n_pipe.py`
+   the code from `n8n_pipe.py`
 
    The function is also [published here on Open WebUI's site](https://openwebui.com/f/coleam/n8n_pipe/).
 
 9. Click on the gear icon and set the n8n_url to the production URL for the webhook
-you copied in a previous step.
-10. Toggle the function on and now it will be available in your model dropdown in the top left! 
+   you copied in a previous step.
+10. Toggle the function on and now it will be available in your model dropdown in the top left!
 
 To open n8n at any time, visit <http://localhost:5678/> in your browser.
 To open Open WebUI at any time, visit <http://localhost:3000/>.
