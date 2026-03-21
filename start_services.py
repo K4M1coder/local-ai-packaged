@@ -43,21 +43,30 @@ def fix_windows_line_endings():
     """Fix CRLF line endings in Supabase config files on Windows."""
     if platform.system() != "Windows":
         return
-    
-    pooler_path = os.path.join("supabase", "docker", "volumes", "pooler", "pooler.exs")
-    if not os.path.exists(pooler_path):
-        return
-    
-    print("Fixing Windows line endings in pooler.exs...")
-    try:
-        with open(pooler_path, 'rb') as f:
-            content = f.read()
-        content = content.replace(b'\r\n', b'\n')
-        with open(pooler_path, 'wb') as f:
-            f.write(content)
-        print("Fixed line endings in pooler.exs")
-    except Exception as e:
-        print(f"Warning: Could not fix line endings in pooler.exs: {e}")
+
+    files_to_fix = [
+        ("pooler.exs", os.path.join("supabase", "docker", "volumes", "pooler", "pooler.exs")),
+        ("kong-entrypoint.sh", os.path.join("supabase", "docker", "volumes", "api", "kong-entrypoint.sh")),
+    ]
+
+    for label, file_path in files_to_fix:
+        if not os.path.exists(file_path):
+            continue
+
+        print(f"Fixing Windows line endings in {label}...")
+        try:
+            with open(file_path, 'rb') as f:
+                content = f.read()
+
+            normalized_content = content.replace(b'\r\n', b'\n')
+
+            if normalized_content != content:
+                with open(file_path, 'wb') as f:
+                    f.write(normalized_content)
+
+            print(f"Fixed line endings in {label}")
+        except Exception as e:
+            print(f"Warning: Could not fix line endings in {label}: {e}")
 
 def prepare_supabase_env():
     """Copy .env to .env in supabase/docker."""

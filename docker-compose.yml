@@ -29,7 +29,7 @@ x-n8n: &service-n8n
     - N8N_USER_MANAGEMENT_JWT_SECRET
     - WEBHOOK_URL=${N8N_HOSTNAME:+https://}${N8N_HOSTNAME:-http://localhost:5678}
     # Uncomment to enable LocalFileTrigger and ExecuteCommand nodes (disabled by default in n8n v2+)
-    # - NODES_EXCLUDE=[]
+    - NODES_EXCLUDE=[]
 
 x-ollama: &service-ollama
   image: ollama/ollama:latest
@@ -78,10 +78,28 @@ services:
     container_name: open-webui
     expose:
       - 8080/tcp
+    depends_on:
+      - pipelines
+    environment:
+      - OPENAI_API_BASE_URL=http://pipelines:9099
+      - OPENAI_API_KEY=${PIPELINES_API_KEY}
     extra_hosts:
       - "host.docker.internal:host-gateway"
     volumes:
       - open-webui:/app/backend/data
+
+  pipelines:
+    image: ghcr.io/open-webui/pipelines:latest
+    restart: unless-stopped
+    container_name: pipelines
+    expose:
+      - 9099/tcp
+    environment:
+      - LOG_LEVEL=info
+      - PIPELINES_API_KEY=${PIPELINES_API_KEY}
+      - PIPELINES_DIR=/app/data
+    volumes:
+      - ./pipelines-data:/app/data
 
   n8n:
     <<: *service-n8n
