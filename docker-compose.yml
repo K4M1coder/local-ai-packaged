@@ -3,6 +3,9 @@ include:
   - ./archon/docker-compose.yml
   - ./deepwiki/docker-compose.yml
   - ./comfyui/docker-compose.yml
+  - ./archon/docker-compose.yml
+  - ./deepwiki/docker-compose.yml
+  - ./comfyui/docker-compose.yml
 
 volumes:
   n8n_storage:
@@ -31,6 +34,8 @@ x-n8n: &service-n8n
     - N8N_ENCRYPTION_KEY
     - N8N_USER_MANAGEMENT_JWT_SECRET
     - WEBHOOK_URL=${N8N_HOSTNAME:+https://}${N8N_HOSTNAME:-http://localhost:5678}
+    # Uncomment to enable LocalFileTrigger and ExecuteCommand nodes (disabled by default in n8n v2+)
+    # - NODES_EXCLUDE=[]
 
 x-ollama: &service-ollama
   image: ollama/ollama:latest
@@ -42,7 +47,7 @@ x-ollama: &service-ollama
     - OLLAMA_CONTEXT_LENGTH=8192
     - OLLAMA_FLASH_ATTENTION=1
     - OLLAMA_KV_CACHE_TYPE=q8_0
-    - OLLAMA_MAX_LOADED_MODELS=2    
+    - OLLAMA_MAX_LOADED_MODELS=2
   volumes:
     - ollama_storage:/root/.ollama
 
@@ -55,10 +60,6 @@ x-init-ollama: &init-ollama
   command:
     - "-c"
     - "sleep 3; OLLAMA_HOST=ollama:11434 ollama pull qwen2.5:7b-instruct-q4_K_M; OLLAMA_HOST=ollama:11434 ollama pull nomic-embed-text"
-    # For a larger context length verison of the model, run these commands:
-    # echo "FROM qwen2.5:7b-instruct-q4_K_M\n\nPARAMETER num_ctx 8096" > Modelfile
-    # ollama create qwen2.5:7b-8k -f ./Modelfile
-    # Change the name of the LLM and num_ctx as you see fit.
 
 services:
   flowise:
@@ -70,9 +71,9 @@ services:
     environment:
         - PORT=3001
         - FLOWISE_USERNAME=${FLOWISE_USERNAME}
-        - FLOWISE_PASSWORD=${FLOWISE_PASSWORD}  
+        - FLOWISE_PASSWORD=${FLOWISE_PASSWORD}
     extra_hosts:
-      - "host.docker.internal:host-gateway"        
+      - "host.docker.internal:host-gateway"
     volumes:
         - ~/.flowise:/root/.flowise
     entrypoint: /bin/sh -c "sleep 3; flowise start"
@@ -88,16 +89,6 @@ services:
     volumes:
       - open-webui:/app/backend/data
 
-  n8n-import:
-    <<: *service-n8n
-    container_name: n8n-import
-    entrypoint: /bin/sh
-    command:
-      - "-c"
-      - "n8n import:credentials --separate --input=/backup/credentials && n8n import:workflow --separate --input=/backup/workflows"
-    volumes:
-      - ./n8n/backup:/backup  
-
   n8n:
     <<: *service-n8n
     container_name: n8n
@@ -108,9 +99,6 @@ services:
       - n8n_storage:/home/node/.n8n
       - ./n8n/backup:/backup
       - ./shared:/data/shared
-    depends_on:
-      n8n-import:
-        condition: service_completed_successfully
 
   qdrant:
     image: qdrant/qdrant
@@ -135,7 +123,7 @@ services:
       - 7687/tcp
     environment:
         - NEO4J_AUTH=${NEO4J_AUTH:-"neo4j/your_password"}
-    restart: always      
+    restart: always
 
   caddy:
     container_name: caddy
@@ -151,7 +139,7 @@ services:
       - 80/tcp
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
-      - ./caddy-addon:/etc/caddy/addons:ro      
+      - ./caddy-addon:/etc/caddy/addons:ro
       - caddy-data:/data:rw
       - caddy-config:/config:rw
     environment:
@@ -179,7 +167,7 @@ services:
     restart: always
     depends_on: &langfuse-depends-on
       postgres:
-        condition: service_healthy    
+        condition: service_healthy
       minio:
         condition: service_healthy
       redis:
@@ -310,7 +298,7 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       POSTGRES_DB: postgres
     volumes:
-      - langfuse_postgres_data:/var/lib/postgresql/data              
+      - langfuse_postgres_data:/var/lib/postgresql/data
 
   redis:
     container_name: redis
@@ -336,7 +324,7 @@ services:
       test: ["CMD", "redis-cli", "ping"]
       interval: 3s
       timeout: 10s
-      retries: 10        
+      retries: 10
 
   searxng:
     container_name: searxng
@@ -360,7 +348,7 @@ services:
       driver: "json-file"
       options:
         max-size: "1m"
-        max-file: "1"      
+        max-file: "1"
 
   ollama-cpu:
     profiles: ["cpu"]
