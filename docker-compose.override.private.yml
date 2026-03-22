@@ -57,6 +57,14 @@ services:
     ports:
       - 127.0.0.1:8081:8080
 
+  faster-whisper:
+    ports:
+      - 127.0.0.1:9090:8000
+
+  kokoro-tts:
+    ports:
+      - 127.0.0.1:8880:8880
+
   ollama-cpu:
     ports:
       - 127.0.0.1:11434:11434

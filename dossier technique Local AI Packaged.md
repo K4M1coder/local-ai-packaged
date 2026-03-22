@@ -19,6 +19,7 @@ Le projet est conçu pour fonctionner sur une **machine unique** (poste dévelop
 | Cas d'usage | Services impliqués |
 | :-- | :-- |
 | **Chat IA local avec modèles privés** | Open WebUI → Ollama |
+| **Voix locale complète (STT + TTS)** | Open WebUI → faster-whisper (STT) + Kokoro (TTS) |
 | **Agents RAG avec base vectorielle** | n8n → Ollama → Qdrant / Supabase pgvector |
 | **Orchestration low-code d'agents** | n8n (workflows) + Flowise (chatflows) |
 | **GraphRAG / Knowledge Graphs** | Neo4j + n8n |
@@ -42,6 +43,8 @@ graph TB
         subgraph AI["AI & LLM"]
             OLLAMA["Ollama\n:11434\nLLMs locaux"]
             OWUI["Open WebUI\n:8080\nChat interface"]
+            WHISPER["faster-whisper\n:8000\nSTT (OpenAI-compat)"]
+            KOKORO["Kokoro\n:8880\nTTS (OpenAI-compat)"]
         end
 
         subgraph AUTOMATION["Automation & Agents"]
@@ -84,6 +87,7 @@ graph TB
 
         CADDY --> OWUI & N8N & FLOWISE & LANGFUSE_WEB & KONG & NEO4J
         OWUI --> OLLAMA
+        OWUI --> WHISPER & KOKORO
         N8N --> SUPA_DB & OLLAMA & QDRANT
         FLOWISE -.->|via n8n tool workflows| N8N
         LANGFUSE_WEB --> LF_PG & CLICKHOUSE & MINIO & REDIS
@@ -150,6 +154,24 @@ Tous les services partagent le nom de projet `localai`, ce qui les regroupe dans
 | **Accès Caddy** | Port `:8002` (private) ou domaine dédié (public) |
 
 **Intégration n8n** : Le fichier `n8n_pipe.py` fournit une fonction Pipe Open WebUI permettant d'appeler un webhook n8n comme backend d'agent depuis l'interface de chat.
+
+**Intégration audio locale** : Open WebUI est configuré via variables d'environnement pour utiliser les services STT/TTS intégrés à la stack :
+
+```yaml
+# STT — faster-whisper (API OpenAI-compatible)
+AUDIO_STT_ENGINE: openai
+AUDIO_STT_OPENAI_API_BASE_URL: http://faster-whisper:8000/v1
+AUDIO_STT_OPENAI_API_KEY: faster-whisper   # valeur arbitraire — pas d'auth
+
+# TTS — Kokoro (API OpenAI-compatible)
+AUDIO_TTS_ENGINE: openai
+AUDIO_TTS_OPENAI_API_BASE_URL: http://kokoro-tts:8880/v1
+AUDIO_TTS_OPENAI_API_KEY: kokoro           # valeur arbitraire — pas d'auth
+AUDIO_TTS_VOICE: af_heart                  # voix naturelle par défaut
+AUDIO_TTS_MODEL: kokoro
+```
+
+> La configuration peut aussi être ajustée dans l'Admin Panel : `Settings → Audio → Speech-to-Text / Text-to-Speech → Engine: OpenAI`.
 
 ### 3.3 n8n — Orchestration low-code
 
@@ -309,6 +331,8 @@ S3_PROTOCOL_ACCESS_KEY_SECRET=850181e4652dd023b7a98c58ae0d2d34bd487ee0cc3254aed6
 | SearXNG | `:8006` | `searxng:8080` (commenté par défaut) |
 | Langfuse | `:8007` | `langfuse-web:3000` |
 | Neo4j | `:8008` | `neo4j:7474` |
+| faster-whisper (STT) | `:8009` | `faster-whisper:8000` (commenté par défaut) |
+| Kokoro (TTS) | `:8010` | `kokoro-tts:8880` (commenté par défaut) |
 
 **Mode production** : Les variables `*_HOSTNAME` remplacent les ports par des domaines, et Caddy obtient automatiquement des certificats Let's Encrypt.
 
@@ -350,6 +374,40 @@ ENCRYPTION_KEY=             # Clé de chiffrement Langfuse
 | **Sécurité** | `cap_drop: ALL`, `cap_add: SETGID, SETUID, DAC_OVERRIDE` |
 | **Utilisé par** | SearXNG (cache recherche), Langfuse (queues ingestion) |
 
+### 3.12 faster-whisper — STT local
+
+| Paramètre | Valeur |
+| :-- | :-- |
+| **Image** | `fedirz/faster-whisper-server:latest-cuda` |
+| **Port interne** | `8000/tcp` |
+| **Volume** | `faster_whisper_models:/root/.cache` (modèles téléchargés au premier démarrage) |
+| **Modèle** | `Systran/faster-whisper-large-v3` |
+| **Compute type** | `int8` (réduit l'empreinte VRAM — compatible GPU et CPU) |
+| **API** | OpenAI-compatible (`/v1/audio/transcriptions`) |
+| **GPU** | NVIDIA via `deploy.resources.reservations.devices` |
+| **Consommé par** | Open WebUI (STT engine OpenAI) |
+
+> Le modèle Whisper large-v3 est téléchargé automatiquement au premier démarrage du conteneur (~3 GB). Le type de calcul `int8` est utilisé pour limiter la consommation VRAM (~1.5 GB au lieu de ~3 GB en FP16).
+
+> **Alternative CPU** : remplacer l'image par `fedirz/faster-whisper-server:latest` et changer `WHISPER__DEVICE=cpu`. Le temps de transcription sera plus long mais fonctionnel.
+
+### 3.13 Kokoro — TTS local
+
+| Paramètre | Valeur |
+| :-- | :-- |
+| **Image** | `ghcr.io/remsky/kokoro-fastapi-gpu:latest` |
+| **Port interne** | `8880/tcp` |
+| **Volume** | `kokoro_voices:/app/voices` (voix pré-entraînées) |
+| **Modèle** | `hexgrad/Kokoro-82M` (82M paramètres, ~0.3 GB VRAM) |
+| **Voix par défaut** | `af_heart` (naturelle, féminine) |
+| **API** | OpenAI-compatible (`/v1/audio/speech`) |
+| **GPU** | NVIDIA via `deploy.resources.reservations.devices` |
+| **Consommé par** | Open WebUI (TTS engine OpenAI) |
+
+> Kokoro est un modèle TTS léger et rapide. Le modèle et les voix sont téléchargés automatiquement au premier démarrage.
+
+> **Alternative CPU** : remplacer l'image par `ghcr.io/remsky/kokoro-fastapi-cpu:latest`. Le modèle 82M tourne confortablement sur CPU.
+
 ***
 
 ## 4. Réseau Docker
@@ -373,6 +431,8 @@ graph LR
         LANGFUSE -->|redis| REDIS
         CADDY["caddy"] -->|reverse proxy| N8N & OWUI & FLOWISE & LANGFUSE & NEO4J["neo4j"]
         CADDY -->|reverse proxy| KONG["kong :8000"]
+        OWUI -->|stt| WHISPER["faster-whisper :8000"]
+        OWUI -->|tts| KOKORO["kokoro-tts :8880"]
     end
 
     EXT["Ports exposés\n80, 443"] --> CADDY
@@ -386,6 +446,8 @@ graph LR
 | n8n | Ollama | `ollama` | `11434` |
 | n8n | Qdrant | `qdrant` | `6333` |
 | Open WebUI | Ollama | `ollama` | `11434` |
+| Open WebUI | faster-whisper (STT) | `faster-whisper` | `8000` |
+| Open WebUI | Kokoro (TTS) | `kokoro-tts` | `8880` |
 | SearXNG | Redis | `redis` | `6379` |
 | Langfuse | PostgreSQL (dédié) | `postgres` | `5432` |
 | Langfuse | ClickHouse | `clickhouse` | `8123` |
@@ -418,6 +480,8 @@ Tous les ports sont bindés sur `127.0.0.1` pour empêcher l'accès réseau exte
 | PostgreSQL (Langfuse) | `127.0.0.1:5433` | `5432` |
 | Redis | `127.0.0.1:6379` | `6379` |
 | SearXNG | `127.0.0.1:8081` | `8080` |
+| faster-whisper (STT) | `127.0.0.1:9090` | `8000` |
+| Kokoro (TTS) | `127.0.0.1:8880` | `8880` |
 
 ### 4.4 Ports exposés — Mode public (production)
 
@@ -517,6 +581,8 @@ python start_services.py --profile <profile> [--environment <env>]
 | `langfuse_clickhouse_data` | ClickHouse | Données analytiques |
 | `langfuse_clickhouse_logs` | ClickHouse | Logs du serveur |
 | `langfuse_minio_data` | MinIO | Événements, médias, exports |
+| `faster_whisper_models` | faster-whisper | Modèles Whisper téléchargés (~3 GB) |
+| `kokoro_voices` | Kokoro TTS | Voix pré-entraînées |
 
 ### 6.2 Bind mounts
 
@@ -615,6 +681,8 @@ import /etc/caddy/addons/*.conf       # Extensions personnalisées
 # ── Commentés par défaut ──────────────────────────────────
 # {$OLLAMA_HOSTNAME}   { reverse_proxy ollama:11434 }
 # {$SEARXNG_HOSTNAME}  { ... config SearXNG avec headers sécurité ... }
+# {$STT_HOSTNAME}      { reverse_proxy faster-whisper:8000 }
+# {$TTS_HOSTNAME}      { reverse_proxy kokoro-tts:8880 }
 ```
 
 ### 8.2 Variables d'environnement Caddy
@@ -629,6 +697,8 @@ import /etc/caddy/addons/*.conf       # Extensions personnalisées
 | `SEARXNG_HOSTNAME` | `:8006` | `searxng.yourdomain.com` |
 | `LANGFUSE_HOSTNAME` | `:8007` | `langfuse.yourdomain.com` |
 | `NEO4J_HOSTNAME` | `:8008` | `neo4j.yourdomain.com` |
+| `STT_HOSTNAME` | `:8009` | `stt.yourdomain.com` |
+| `TTS_HOSTNAME` | `:8010` | `tts.yourdomain.com` |
 | `LETSENCRYPT_EMAIL` | `internal` | `your-email@domain.com` |
 
 > En mode private (port numérique comme `:8001`), Caddy n'active pas HTTPS — les services sont accessibles en HTTP. En mode public (FQDN), Caddy obtient automatiquement un certificat Let's Encrypt et force HTTPS.
@@ -754,6 +824,8 @@ python start_services.py --profile <profile>
 | Flowise | http://localhost:3001 ou http://localhost:8003 (Caddy) |
 | Supabase Studio | http://localhost:8005 (Caddy) |
 | Langfuse | http://localhost:3000 ou http://localhost:8007 (Caddy) |
+| faster-whisper (STT) | http://localhost:9090 |
+| Kokoro (TTS) | http://localhost:8880 |
 | SearXNG | http://localhost:8081 |
 | Neo4j Browser | http://localhost:7474 ou http://localhost:8008 (Caddy) |
 | Qdrant Dashboard | http://localhost:6333/dashboard |
