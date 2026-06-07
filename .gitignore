@@ -18,3 +18,4 @@ scripts/__pycache__/openwebui_admin_recovery.cpython-314.pyc
 .github/prompts/deployment-plan.prompt.md
 .github/prompts/review-platform.prompt.md
 .github/prompts/runbook-incident.prompt.md
+.env copy
