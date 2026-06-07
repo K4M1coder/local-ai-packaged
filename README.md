@@ -53,6 +53,10 @@ and run the latest local LLMs
 ✅ [**Open WebUI**](https://openwebui.com/) - ChatGPT-like interface to
 privately interact with your local models and N8N agents
 
+✅ [**Open WebUI Pipelines**](https://github.com/open-webui/pipelines) - Pipeline runtime for Open WebUI tools and custom processing flows
+
+By default, this stack wires Open WebUI to the internal Pipelines endpoint at `http://pipelines:9099` using the standard Pipelines API key, so the Pipelines admin tab works without additional connection setup.
+
 ✅ [**Flowise**](https://flowiseai.com/) - No/low code AI agent
 builder that pairs very well with n8n
 
@@ -213,6 +217,10 @@ The **start-services.py** script offers the possibility to pass one of two optio
 - **private:** you are deploying the stack in a safe environment, hence a lot of ports can be made accessible without having to worry about security
 - **public:** the stack is deployed in a public environment, which means the attack surface should be made as small as possible. All ports except for 80 and 443 are closed
 
+In `private` mode, the Open WebUI Pipelines API is also published locally on `127.0.0.1:9099` for testing. In `public` mode, that port remains closed.
+
+Open WebUI is preconfigured to reach Pipelines over the internal Docker network, and Pipelines content is persisted under `./pipelines-data`.
+
 The stack initialized with
 
 ```bash
@@ -312,6 +320,11 @@ to get started.
 7. Open <http://localhost:3000/> in your browser to set up Open WebUI.
    You’ll only have to do this once. You are NOT creating an account with Open WebUI in the
    setup here, it is only a local account for your instance!
+
+If you need to reset the Open WebUI admin password later, or create the first admin account when none exists yet, run:
+```bash
+e:/local-ai-packaged/.venv/Scripts/python.exe scripts/openwebui_admin_recovery.py --email you@example.com --password "NewStrongPassword" --name "Admin Name"
+```
 8. Go to Workspace -> Functions -> Add Function -> Give name + description then paste in
    the code from `n8n_pipe.py`
 

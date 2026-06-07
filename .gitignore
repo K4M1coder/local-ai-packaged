@@ -6,3 +6,16 @@ shared-backup/
 .env.test
 searxng/settings.yml
 searxng/uwsgi*
+scripts/openwebui_admin_recovery.py
+scripts/__pycache__/openwebui_admin_recovery.cpython-314.pyc
+.github/copilot-instructions.md
+.github/README.md
+.github/agents/infra-review.agent.md
+.github/agents/platform-architect.agent.md
+.github/instructions/automation-assets.instructions.md
+.github/instructions/docker-platform.instructions.md
+.github/prompts/compose-hardening.prompt.md
+.github/prompts/deployment-plan.prompt.md
+.github/prompts/review-platform.prompt.md
+.github/prompts/runbook-incident.prompt.md
+.env copy

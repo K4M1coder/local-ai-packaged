@@ -20,6 +20,8 @@ volumes:
   langfuse_clickhouse_data:
   langfuse_clickhouse_logs:
   langfuse_minio_data:
+  faster_whisper_models:
+  kokoro_voices:
 
 x-n8n: &service-n8n
   image: n8nio/n8n:latest
@@ -35,7 +37,7 @@ x-n8n: &service-n8n
     - N8N_USER_MANAGEMENT_JWT_SECRET
     - WEBHOOK_URL=${N8N_HOSTNAME:+https://}${N8N_HOSTNAME:-http://localhost:5678}
     # Uncomment to enable LocalFileTrigger and ExecuteCommand nodes (disabled by default in n8n v2+)
-    # - NODES_EXCLUDE=[]
+    - NODES_EXCLUDE=[]
 
 x-ollama: &service-ollama
   image: ollama/ollama:latest
@@ -84,10 +86,38 @@ services:
     container_name: open-webui
     expose:
       - 8080/tcp
+    depends_on:
+      - pipelines
+      - faster-whisper
+      - kokoro-tts
+    environment:
+      - OPENAI_API_BASE_URL=http://pipelines:9099
+      - OPENAI_API_KEY=${PIPELINES_API_KEY}
+      - AUDIO_STT_ENGINE=openai
+      - AUDIO_STT_OPENAI_API_BASE_URL=http://faster-whisper:8000/v1
+      - AUDIO_STT_OPENAI_API_KEY=faster-whisper
+      - AUDIO_TTS_ENGINE=openai
+      - AUDIO_TTS_OPENAI_API_BASE_URL=http://kokoro-tts:8880/v1
+      - AUDIO_TTS_OPENAI_API_KEY=kokoro
+      - AUDIO_TTS_VOICE=af_heart
+      - AUDIO_TTS_MODEL=kokoro
     extra_hosts:
       - "host.docker.internal:host-gateway"
     volumes:
       - open-webui:/app/backend/data
+
+  pipelines:
+    image: ghcr.io/open-webui/pipelines:latest
+    restart: unless-stopped
+    container_name: pipelines
+    expose:
+      - 9099/tcp
+    environment:
+      - LOG_LEVEL=info
+      - PIPELINES_API_KEY=${PIPELINES_API_KEY}
+      - PIPELINES_DIR=/app/data
+    volumes:
+      - ./pipelines-data:/app/data
 
   n8n:
     <<: *service-n8n
@@ -151,6 +181,8 @@ services:
       - SEARXNG_HOSTNAME=${SEARXNG_HOSTNAME:-":8006"}
       - LANGFUSE_HOSTNAME=${LANGFUSE_HOSTNAME:-":8007"}
       - NEO4J_HOSTNAME=${NEO4J_HOSTNAME:-":8008"}
+      - STT_HOSTNAME=${STT_HOSTNAME:-":8009"}
+      - TTS_HOSTNAME=${TTS_HOSTNAME:-":8010"}
       - LETSENCRYPT_EMAIL=${LETSENCRYPT_EMAIL:-internal}
     cap_drop:
       - ALL
@@ -325,6 +357,54 @@ services:
       interval: 3s
       timeout: 10s
       retries: 10
+
+  faster-whisper:
+    image: fedirz/faster-whisper-server:latest-cuda
+    container_name: faster-whisper
+    restart: unless-stopped
+    expose:
+      - 8000/tcp
+    environment:
+      - WHISPER__MODEL=Systran/faster-whisper-large-v3
+      - WHISPER__COMPUTE_TYPE=int8
+      - WHISPER__DEVICE=cuda
+    volumes:
+      - faster_whisper_models:/root/.cache
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    healthcheck:
+      test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  kokoro-tts:
+    image: ghcr.io/remsky/kokoro-fastapi-gpu:latest
+    container_name: kokoro-tts
+    restart: unless-stopped
+    expose:
+      - 8880/tcp
+    volumes:
+      - kokoro_voices:/app/voices
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8880/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
 
   searxng:
     container_name: searxng
